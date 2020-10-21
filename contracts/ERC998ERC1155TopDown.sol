@@ -34,10 +34,16 @@ contract ERC998ERC1155TopDown is ERC721, ERC1155Receiver, IERC998ERC1155TopDown 
         _setBaseURI(baseURI);
     }
 
-    function childBalance(uint256 tokrnId, address childContract, uint256 childTokenId) external view override returns(uint256) {
-        return _balances[tokrnId][childContract][childTokenId];
+    /**
+     * @dev Gives child balance for a specific child contract and child id .
+     */
+    function childBalance(uint256 tokenId, address childContract, uint256 childTokenId) external view override returns(uint256) {
+        return _balances[tokenId][childContract][childTokenId];
     }
 
+    /**
+     * @dev Gives list of child contract where token ID has childs.
+     */
     function childContractsFor(uint256 tokenId) override external view returns (address[] memory) {
         address[] memory childContracts = new address[](_childContract[tokenId].length());
 
@@ -48,6 +54,9 @@ contract ERC998ERC1155TopDown is ERC721, ERC1155Receiver, IERC998ERC1155TopDown 
         return childContracts;
     }
 
+    /**
+     * @dev Gives list of owned child ID on a child contract by token ID.
+     */
     function childIdsForOn(uint256 tokenId, address childContract) override external view returns (uint256[] memory) {
         uint256[] memory childTokenIds = new uint256[](_childsForChildContract[tokenId][childContract].length());
 
@@ -58,6 +67,9 @@ contract ERC998ERC1155TopDown is ERC721, ERC1155Receiver, IERC998ERC1155TopDown 
         return childTokenIds;
     }
 
+    /**
+     * @dev Transfers child token from a token ID.
+     */
     function safeTransferChildFrom(uint256 fromTokenId, address to, address childContract, uint256 childTokenId, uint256 amount, bytes memory data) public override {
         require(to != address(0), "ERC998: transfer to the zero address");
 
@@ -68,12 +80,6 @@ contract ERC998ERC1155TopDown is ERC721, ERC1155Receiver, IERC998ERC1155TopDown 
             "ERC998: caller is not owner nor approved"
         );
 
-        // TODO: sender is owner || operator for sender ||  approved Address for sender
-        /* require(
-            from == _msgSender() || isApprovedForAll(from, _msgSender()),
-            "ERC1155: caller is not owner nor approved"
-        );
-        */
         _beforeChildTransfer(operator, fromTokenId, to, childContract, _asSingletonArray(childTokenId), _asSingletonArray(amount), data);
 
         _removeChild(fromTokenId, childContract, childTokenId, amount);
@@ -83,6 +89,9 @@ contract ERC998ERC1155TopDown is ERC721, ERC1155Receiver, IERC998ERC1155TopDown 
         TransferSingleChild(fromTokenId, to, childContract, childTokenId, amount);
     }
 
+    /**
+     * @dev Transfers batch of child tokens from a token ID.
+     */
     function safeBatchTransferChildFrom(uint256 fromTokenId, address to, address childContract, uint256[] memory childTokenIds, uint256[] memory amounts, bytes memory data) public override {
         require(childTokenIds.length == amounts.length, "ERC998: ids and amounts length mismatch");
         require(to != address(0), "ERC998: transfer to the zero address");
@@ -106,6 +115,10 @@ contract ERC998ERC1155TopDown is ERC721, ERC1155Receiver, IERC998ERC1155TopDown 
         TransferBatchChild(fromTokenId, to, childContract, childTokenIds, amounts);
     }
 
+    /**
+     * @dev Receives a child token, the receiver token ID must be encoded in the
+     * field data.
+     */
     function onERC1155Received(address operator, address from, uint256 id, uint256 amount, bytes memory data) virtual public override returns(bytes4) {
         require(data.length == 32, "ERC998: data must contain the unique uint256 tokenId to transfer the child token to");
         _beforeChildTransfer(operator, 0, address(this), from, _asSingletonArray(id), _asSingletonArray(amount), data);
@@ -120,6 +133,10 @@ contract ERC998ERC1155TopDown is ERC721, ERC1155Receiver, IERC998ERC1155TopDown 
         return this.onERC1155Received.selector;
     }
 
+    /**
+     * @dev Receives a batch of child tokens, the receiver token ID must be
+     * encoded in the field data.
+     */
     function onERC1155BatchReceived(address operator, address from, uint256[] memory ids, uint256[] memory values, bytes memory data) virtual public override returns(bytes4) {
         require(data.length == 32, "ERC998: data must contain the unique uint256 tokenId to transfer the child token to");
         require(ids.length == values.length, "ERC1155: ids and values length mismatch");
@@ -134,6 +151,18 @@ contract ERC998ERC1155TopDown is ERC721, ERC1155Receiver, IERC998ERC1155TopDown 
         }
         return this.onERC1155BatchReceived.selector;
     }
+
+    function _beforeChildTransfer(
+        address operator,
+        uint256 fromTokenId,
+        address to,
+        address childContract,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        bytes memory data
+    )
+        internal virtual
+    { }
 
     function _receiveChild(uint256 tokenId, address childContract, uint256 childTokenId, uint256 amount) private {
         if(!_childContract[tokenId].contains(childContract)) {
@@ -156,18 +185,6 @@ contract ERC998ERC1155TopDown is ERC721, ERC1155Receiver, IERC998ERC1155TopDown 
             }
         }
     }
-
-    function _beforeChildTransfer(
-        address operator,
-        uint256 fromTokenId,
-        address to,
-        address childContract,
-        uint256[] memory ids,
-        uint256[] memory amounts,
-        bytes memory data
-    )
-        internal virtual
-    { }
 
     function _asSingletonArray(uint256 element) private pure returns (uint256[] memory) {
         uint256[] memory array = new uint256[](1);
