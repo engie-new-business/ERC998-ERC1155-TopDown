@@ -5,24 +5,21 @@ pragma solidity ^0.6.0;
 /*
 // for remix
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC1155/ERC1155.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC1155/ERC1155Receiver.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC721/ERC721.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/EnumerableSet.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/EnumerableMap.sol";
 */
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155Receiver.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
-import "@openzeppelin/contracts/utils/EnumerableMap.sol";
 
 import "./IERC998ERC1155TopDown.sol";
 
 contract ERC998ERC1155TopDown is ERC721, ERC1155Receiver, IERC998ERC1155TopDown {
     using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableSet for EnumerableSet.UintSet;
 
     mapping(uint256 => mapping(address => mapping(uint256 => uint256))) private _balances;
     mapping(address => mapping(uint256 => EnumerableSet.UintSet)) private _holdersOf;
@@ -152,6 +149,28 @@ contract ERC998ERC1155TopDown is ERC721, ERC1155Receiver, IERC998ERC1155TopDown 
         return this.onERC1155BatchReceived.selector;
     }
 
+    function _receiveChild(uint256 tokenId, address childContract, uint256 childTokenId, uint256 amount) internal virtual {
+        if(!_childContract[tokenId].contains(childContract)) {
+            _childContract[tokenId].add(childContract);
+        }
+        if(_balances[tokenId][childContract][childTokenId] == 0) {
+            _childsForChildContract[tokenId][childContract].add(childTokenId);
+        }
+        _balances[tokenId][childContract][childTokenId] += amount;
+    }
+
+    function _removeChild(uint256 tokenId, address childContract, uint256 childTokenId, uint256 amount) internal virtual {
+        require(amount != 0 || _balances[tokenId][childContract][childTokenId] >= amount, "ERC998: insufficient child balance for transfer");
+        _balances[tokenId][childContract][childTokenId] -= amount;
+        if(_balances[tokenId][childContract][childTokenId] == 0) {
+            _holdersOf[childContract][childTokenId].remove(tokenId);
+            _childsForChildContract[tokenId][childContract].remove(childTokenId);
+            if(_childsForChildContract[tokenId][childContract].length() == 0) {
+                _childContract[tokenId].remove(childContract);
+            }
+        }
+    }
+
     function _beforeChildTransfer(
         address operator,
         uint256 fromTokenId,
@@ -163,28 +182,6 @@ contract ERC998ERC1155TopDown is ERC721, ERC1155Receiver, IERC998ERC1155TopDown 
     )
         internal virtual
     { }
-
-    function _receiveChild(uint256 tokenId, address childContract, uint256 childTokenId, uint256 amount) private {
-        if(!_childContract[tokenId].contains(childContract)) {
-            _childContract[tokenId].add(childContract);
-        }
-        if(_balances[tokenId][childContract][childTokenId] == 0) {
-            _childsForChildContract[tokenId][childContract].add(childTokenId);
-        }
-        _balances[tokenId][childContract][childTokenId] += amount;
-    }
-
-    function _removeChild(uint256 tokenId, address childContract, uint256 childTokenId, uint256 amount) private {
-        require(amount != 0 || _balances[tokenId][childContract][childTokenId] >= amount, "ERC998: insufficient child balance for transfer");
-        _balances[tokenId][childContract][childTokenId] -= amount;
-        if(_balances[tokenId][childContract][childTokenId] == 0) {
-            _holdersOf[childContract][childTokenId].remove(tokenId);
-            _childsForChildContract[tokenId][childContract].remove(childTokenId);
-            if(_childsForChildContract[tokenId][childContract].length() == 0) {
-                _childContract[tokenId].remove(childContract);
-            }
-        }
-    }
 
     function _asSingletonArray(uint256 element) private pure returns (uint256[] memory) {
         uint256[] memory array = new uint256[](1);
